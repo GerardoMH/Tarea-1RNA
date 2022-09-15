@@ -37,15 +37,14 @@ class Network(object):
         self.biases = [np.random.randn(y, 1) for y in sizes[1:]]
         self.weights = [np.random.randn(y, x)
                         for x, y in zip(sizes[:-1], sizes[1:])]
-        self.paux = [np.random.randn(y, x)                    #estas dos definen la red neuronal  [:-1]----> indica que toma todos indices excepto el último
-                        for x, y in zip(sizes[:-1], sizes[1:])]
+
     def feedforward(self, a):
         """Return the output of the network if ``a`` is input."""
         for b, w in zip(self.biases, self.weights):
             a = sigmoid(np.dot(w, a)+b)
         return a
 
-    def RMSprop(self, training_data, epochs, mini_batch_size, eta,
+    def SGD(self, training_data, epochs, mini_batch_size, eta,
             test_data=None):
         """Train the neural network using mini-batch stochastic
         gradient descent.  The ``training_data`` is a list of tuples
@@ -83,19 +82,15 @@ class Network(object):
         nabla_b = [np.zeros(b.shape) for b in self.biases]
         nabla_w = [np.zeros(w.shape) for w in self.weights]
         for x, y in mini_batch:
-            delta_nabla_b, delta_nabla_w = self.backprop(x, y)
+            delta_nabla_b, delta_nabla_w = self.backprop(x, y, mini_batch)
             nabla_b = [nb+dnb for nb, dnb in zip(nabla_b, delta_nabla_b)]
             nabla_w = [nw+dnw for nw, dnw in zip(nabla_w, delta_nabla_w)]
-        Beta = 0.99
-        epsilon = 1*np.exp(-8) #para evitar indeterminaciones
-        self.paux = [( Beta*p+(1-Beta)*np.sum(nw**2)) 
-                       for p, nw in zip (self.paux, nabla_w)]
-        self.weights = [w-(eta/(len(mini_batch)*p+epsilon))*nw
-                       for w, nw, p in zip(self.weights, nabla_w, self.paux)]
-        self.biases = [b-(eta/(len(mini_batch)))*nb
+        self.weights = [w-(eta/len(mini_batch))*nw
+                        for w, nw in zip(self.weights, nabla_w)]
+        self.biases = [b-(eta/len(mini_batch))*nb
                        for b, nb in zip(self.biases, nabla_b)]
 
-    def backprop(self, x, y):
+    def backprop(self, x, y,mini_batch):
         """Return a tuple ``(nabla_b, nabla_w)`` representing the
         gradient for the cost function C_x.  ``nabla_b`` and
         ``nabla_w`` are layer-by-layer lists of numpy arrays, similar
@@ -112,7 +107,7 @@ class Network(object):
             activation = sigmoid(z)
             activations.append(activation)
         # backward pass
-        delta = self.cost_derivative(activations[-1], y) * \
+        delta = (1/len(mini_batch))*self.cost_derivative(activations[-1], y) * \
             sigmoid_prime(zs[-1])
         nabla_b[-1] = delta
         nabla_w[-1] = np.dot(delta, activations[-2].transpose())
@@ -142,7 +137,7 @@ class Network(object):
     def cost_derivative(self, output_activations, y):
         """Return the vector of partial derivatives \partial C_x /
         \partial a for the output activations."""
-        return (output_activations-y)
+        return np.sum(np.nan_to_num(-y*np.log(output_activations)-(1-y)*np.log(1-output_activations)))
 
 #### Miscellaneous functions
 def sigmoid(z):
@@ -150,5 +145,4 @@ def sigmoid(z):
     return 1.0/(1.0+np.exp(-z))
 
 def sigmoid_prime(z):
-    """Derivative of the sigmoid function."""
-    return sigmoid(z)*(1-sigmoid(z))
+     return sigmoid(z)*(1-sigmoid(z))
